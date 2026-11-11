@@ -1,0 +1,162 @@
+﻿using AionDpsMeter.Services.Models;
+using AionDpsMeter.Services.Services.Settings;
+using AionDpsMeter.UI.Utils;
+using System.Xml.Linq;
+
+namespace AionDpsMeter.UI.ViewModels
+{
+    public sealed class PlayerStatsViewModel : ViewModelBase
+    {
+        private readonly PlayerStats _stats;
+        private readonly IAppSettingsService _settingsService;
+        private int rankIndex = 4;
+
+        // absolute: % of total damage
+        private double absoulutePercentage;
+        public double AbsolutePercentage => absoulutePercentage;
+        // relative to the top player (top = 100%)
+        private double relativePercentage;
+        public double RelativePercentage => relativePercentage;
+        public double EffectivePercentage => _settingsService.RelativeProgressBar
+            ? relativePercentage
+            : absoulutePercentage;
+
+        public double PlayerRowScale => _settingsService.PlayerRowScale;
+        public int RankIndex
+        {
+            get => rankIndex;
+            private set => SetProperty(ref rankIndex, value);
+        }
+
+        public PlayerStatsViewModel(PlayerStats stats, IAppSettingsService settingsService)
+        {
+            settingsService.SettingsChanged += (_, _) => OnPropertyChanged(nameof(PlayerRowScale));
+            _stats = stats;
+            _settingsService = settingsService;
+            absoulutePercentage = stats.DamagePercentage;
+            _settingsService.SettingsChanged += OnSettingsChanged;
+        }
+
+        private void OnSettingsChanged(object? sender, EventArgs e)
+        {
+            OnPropertyChanged(nameof(PlayerNameDisplay));
+            OnPropertyChanged(nameof(EffectivePercentage));
+        }
+        public long    PlayerId          => _stats.PlayerId;
+        public string  PlayerName        => _stats.PlayerName;
+        public string  ServerName        => _stats.ServerName;
+        public bool    IsIdentified      => _stats.IsIdentified;
+
+        /// <summary>
+        /// Nickname formatted as <c>Name[Server]</c> when server is known, otherwise just <c>Name</c>.
+        /// When nickname hiding is enabled the name part is obfuscated.
+        /// </summary>
+        public string PlayerNameDisplay
+        {
+            get
+            {
+                string name = _settingsService.IsNicknameHidden
+                    ? NicknameObfuscator.Mask(_stats.PlayerName)
+                    : _stats.PlayerName;
+                return name;
+            }
+        }
+
+        public string? PlayerIcon        => _stats.PlayerIcon;
+        public string  ClassName         => _stats.ClassName;
+        public int ClassId               => _stats.ClassId;
+        public string? ClassIcon         => _stats.ClassIcon;
+        public string     CombatPower       => DamageFormatter.Format(_stats.CombatPower);
+        public bool    HasPlayerIcon     => !string.IsNullOrEmpty(_stats.PlayerIcon);
+        public bool    HasClassIcon      => !string.IsNullOrEmpty(_stats.ClassIcon);
+
+        public long   TotalDamage          => _stats.TotalDamage;
+        public string TotalDamageFormatted => DamageFormatter.Format(_stats.TotalDamage);
+        public double DamagePerSecond      => _stats.DamagePerSecond;
+        public string DpsFormatted         => DamageFormatter.Format(_stats.DamagePerSecond);
+        public double DamagePercentage     => _stats.DamagePercentage;
+        public int    PlayerDeaths         => _stats.PlayerDeaths;
+        public bool   ShowPlayerDeaths     => _settingsService.ShowPlayerDeaths;
+        public bool   IsDeathDisplayVisible => ShowPlayerDeaths && PlayerDeaths > 0;
+        public string PlayerDeathsDisplay  => $"💀 {PlayerDeaths}";
+        public int    HitCount             => _stats.HitCount;
+        public double CriticalRate         => _stats.CriticalRate;
+        public double BackAttackRate       => _stats.BackAttackRate;
+        public bool    IsUser            => _stats.IsUser;
+
+        public void Update(PlayerStats updatedStats)
+        {
+            // Direct property copy — no reflection overhead
+            _stats.PlayerIcon        = updatedStats.PlayerIcon;
+            _stats.ClassName         = updatedStats.ClassName;
+            _stats.ClassId           = updatedStats.ClassId;
+            _stats.ClassIcon         = updatedStats.ClassIcon;
+            _stats.CombatPower       = updatedStats.CombatPower;
+            _stats.ServerName        = updatedStats.ServerName;
+            _stats.PlayerDeaths      = updatedStats.PlayerDeaths;
+            _stats.TotalDamage       = updatedStats.TotalDamage;
+            _stats.HitCount          = updatedStats.HitCount;
+            _stats.CriticalHits      = updatedStats.CriticalHits;
+            _stats.BackAttacks       = updatedStats.BackAttacks;
+            _stats.PerfectHits       = updatedStats.PerfectHits;
+            _stats.DoubleDamageHits  = updatedStats.DoubleDamageHits;
+            _stats.ParryHits         = updatedStats.ParryHits;
+            _stats.DamagePerSecond   = updatedStats.DamagePerSecond;
+            _stats.DamagePercentage  = updatedStats.DamagePercentage;
+            _stats.FirstHit          = updatedStats.FirstHit;
+            _stats.LastHit           = updatedStats.LastHit;
+
+            // Smooth ease-towards animation for the absolute progress bar
+            double target = _stats.DamagePercentage;
+            double diff   = target - absoulutePercentage;
+            if (Math.Abs(diff) < 0.05)
+                absoulutePercentage = target;
+            else
+                absoulutePercentage += diff * 0.25;
+
+            OnPropertyChanged(nameof(TotalDamage));
+            OnPropertyChanged(nameof(TotalDamageFormatted));
+            OnPropertyChanged(nameof(DamagePerSecond));
+            OnPropertyChanged(nameof(DpsFormatted));
+            OnPropertyChanged(nameof(DamagePercentage));
+            OnPropertyChanged(nameof(AbsolutePercentage));
+            OnPropertyChanged(nameof(EffectivePercentage));
+            OnPropertyChanged(nameof(PlayerDeaths));
+            OnPropertyChanged(nameof(IsDeathDisplayVisible));
+            OnPropertyChanged(nameof(PlayerDeathsDisplay));
+            OnPropertyChanged(nameof(IsIdentified));
+            OnPropertyChanged(nameof(HitCount));
+            OnPropertyChanged(nameof(CriticalRate));
+            OnPropertyChanged(nameof(BackAttackRate));
+            OnPropertyChanged(nameof(ClassName));
+            OnPropertyChanged(nameof(ClassId));
+            OnPropertyChanged(nameof(ClassIcon));
+            OnPropertyChanged(nameof(PlayerIcon));
+            OnPropertyChanged(nameof(HasPlayerIcon));
+            OnPropertyChanged(nameof(HasClassIcon));
+            OnPropertyChanged(nameof(CombatPower));
+            OnPropertyChanged(nameof(ServerName));
+            OnPropertyChanged(nameof(PlayerNameDisplay));
+            OnPropertyChanged(nameof(IsUser));
+        }
+
+        /// <summary>
+        /// Called by MainViewModel each tick to animate the relative percentage
+        /// (top player = 100%, others proportional).
+        /// </summary>
+        public void UpdateRelativePercentage(double targetRelative)
+        {
+            double diff = targetRelative - relativePercentage;
+            if (Math.Abs(diff) < 0.05)
+                relativePercentage = targetRelative;
+            else
+                relativePercentage += diff * 0.25;
+
+            OnPropertyChanged(nameof(RelativePercentage));
+            OnPropertyChanged(nameof(EffectivePercentage));
+        }
+
+        public void UpdateRankIndex(int index)
+            => RankIndex = index;
+    }
+}

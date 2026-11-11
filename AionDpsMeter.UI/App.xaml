@@ -1,0 +1,103 @@
+﻿<Application x:Class="AionDpsMeter.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:AionDpsMeter.UI.Converters">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignColors;component/Themes/Recommended/Primary/MaterialDesignColor.DeepPurple.xaml" />
+
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Converters -->
+            <converters:PercentageToWidthConverter x:Key="PercentageToWidthConverter"/>
+            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <converters:SafeImageSourceConverter x:Key="SafeImageSourceConverter"/>
+            <converters:StringToBrushConverter x:Key="StringToBrushConverter"/>
+            <converters:IntToVisibilityConverter x:Key="IntToVisibilityConverter"/>
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+            <converters:SpecFlagsConverter x:Key="SpecFlagsConverter"/>
+            <converters:BoolToProgressBrushConverter x:Key="BoolToProgressBrushConverter"/>
+            <converters:BoolToStyle2ProgressBrushConverter x:Key="BoolToStyle2ProgressBrushConverter"/>
+
+            <!-- Colors – dark gaming theme -->
+            <FontFamily x:Key="MeterMonoFont">pack://application:,,,/AionDpsMeter.UI;component/Assets/Fonts/#JetBrains Mono</FontFamily>
+
+            <Style TargetType="{x:Type Control}" BasedOn="{StaticResource {x:Type Control}}">
+                <Setter Property="FontFamily" Value="{StaticResource MeterMonoFont}"/>
+            </Style>
+
+            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontFamily" Value="{StaticResource MeterMonoFont}"/>
+            </Style>
+
+            <SolidColorBrush x:Key="PrimaryBackgroundBrush"   Color="#0D1117"/>
+            <SolidColorBrush x:Key="SecondaryBackgroundBrush" Color="#161B22"/>
+            <SolidColorBrush x:Key="TertiaryBackgroundBrush"  Color="#21262D"/>
+            <SolidColorBrush x:Key="PrimaryTextBrush"         Color="#E6EDF3"/>
+            <SolidColorBrush x:Key="SecondaryTextBrush"       Color="#8B949E"/>
+            <SolidColorBrush x:Key="AccentBrush"              Color="#58A6FF"/>
+            <SolidColorBrush x:Key="DamageBarBrush"           Color="#3DC9B0"/>
+            <SolidColorBrush x:Key="CriticalColorBrush"       Color="#FF7043"/>
+            <!-- Accent palette -->
+            <SolidColorBrush x:Key="DpsColorBrush"            Color="#7EE787"/>
+            <SolidColorBrush x:Key="BackAttackColorBrush"     Color="#79C0FF"/>
+            <SolidColorBrush x:Key="PerfectColorBrush"        Color="#D2A8FF"/>
+            <SolidColorBrush x:Key="DoubleDamageColorBrush"   Color="#FFA657"/>
+            <SolidColorBrush x:Key="ParryColorBrush"          Color="#FF6B6B"/>
+            <SolidColorBrush x:Key="BuffColorBrush"           Color="#E0B0FF"/>
+
+            <!-- Progress bar gradient (left dark → right green) -->
+            <LinearGradientBrush x:Key="ProgressBarGradientBrush" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#152B15" Offset="0"/>
+                <GradientStop Color="#238636" Offset="1"/>
+            </LinearGradientBrush>
+
+            <!-- Progress bar gradient for current user (left dark → right purple) -->
+            <LinearGradientBrush x:Key="ProgressBarUserGradientBrush" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#1A0D2B" Offset="0"/>
+                <GradientStop Color="#7C3AED" Offset="1"/>
+            </LinearGradientBrush>
+
+            <!-- Default Button Style -->
+            <Style x:Key="ModernButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="4"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" 
+                                                VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Opacity" Value="0.8"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Opacity" Value="0.6"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Column header text style (shared by all table windows) -->
+            <Style x:Key="ColHeader" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

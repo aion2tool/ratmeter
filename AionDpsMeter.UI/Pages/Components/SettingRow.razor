@@ -1,0 +1,35 @@
+@if (Matches)
+{
+<div class="setting-row @(IsLast ? "setting-row--last" : "")">
+    <div class="setting-row__text">
+        <span class="setting-row__title">@Title</span>
+        @if (!string.IsNullOrEmpty(Description))
+        {
+            <span class="setting-row__desc">@Description</span>
+        }
+    </div>
+    <div class="setting-row__control">
+        @ValueSlot
+    </div>
+</div>
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public bool IsLast { get; set; }
+    [Parameter] public RenderFragment? ValueSlot { get; set; }
+    [CascadingParameter(Name = "SettingsQuery")] public string? Query { get; set; }
+
+    /// <summary>Every word of the search appears in the title or description (no search = always).</summary>
+    private bool Matches
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Query)) return true;
+            string text = Title + " " + Description;
+            return Query.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .All(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+}

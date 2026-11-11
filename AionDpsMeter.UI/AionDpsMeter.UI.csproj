@@ -1,0 +1,84 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.20348.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
+    <UseRazorSourceGenerator>true</UseRazorSourceGenerator>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <ApplicationIcon>ICON_CH_SKILL_006.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="10.0.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="MaterialDesignColors" Version="5.3.0" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AionDpsMeter.Core\AionDpsMeter.Core.csproj" />
+    <ProjectReference Include="..\AionDpsMeter.Services\AionDpsMeter.Services.csproj" />
+  </ItemGroup>
+
+  <!-- After publish: publish Updater as single-file into the same output folder -->
+  <Target Name="PublishUpdater" AfterTargets="Publish">
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\AionDpsMeter.Updater\AionDpsMeter.Updater.csproj&quot; --configuration $(Configuration) --runtime $(RuntimeIdentifier) --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output &quot;$(PublishDir.TrimEnd('\').TrimEnd('/'))&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)" />
+  </Target>
+
+  <!-- Copy Data files from Core project -->
+  <ItemGroup>
+    <None Include="..\AionDpsMeter.Core\Data\*.json" Link="Data\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <Resource Include="Assets\**\*.png" />
+    <Resource Include="Assets\**\*.jpg" />
+    <Resource Include="Assets\**\*.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="appsettings.json" />
+    <None Remove="Assets\Fonts\JetBrainsMono-Bold.ttf" />
+    <None Remove="Assets\Fonts\JetBrainsMono-Regular.ttf" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ICON_CH_SKILL_006.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Fonts\JetBrainsMono-Bold.ttf" />
+    <Resource Include="Assets\Fonts\JetBrainsMono-Regular.ttf" />
+    <Resource Include="wwwroot\images\classes\13.png" />
+    <Resource Include="wwwroot\images\classes\19.png" />
+    <Resource Include="wwwroot\images\classes\18.png" />
+    <Resource Include="wwwroot\images\classes\17.png" />
+    <Resource Include="wwwroot\images\classes\16.png" />
+    <Resource Include="wwwroot\images\classes\11.png" />
+    <Resource Include="wwwroot\images\classes\14.png" />
+    <Resource Include="wwwroot\images\classes\15.png" />
+    <Resource Include="wwwroot\images\classes\12.png" />
+  </ItemGroup>
+
+</Project>

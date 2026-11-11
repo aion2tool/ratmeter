@@ -1,0 +1,730 @@
+@page "/settings"
+
+<div class="settings-shell">
+
+    @* ================= SIDEBAR ================= *@
+    <aside class="sidebar">
+        <div class="brand" @onmousedown="BeginDrag">
+            <span class="brand__mark"></span>
+            <div class="brand__text">
+                <span class="brand__name">RATmeter</span>
+                <span class="brand__sub">Settings</span>
+            </div>
+        </div>
+
+        <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+            <input type="search" placeholder="Search settings" aria-label="Search settings"
+                   value="@_query" @oninput="e => _query = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <nav class="nav" role="tablist" aria-label="Settings groups">
+            @foreach (var group in _groups)
+            {
+                bool active = group.Id == _activeGroup && !Searching;
+                <button type="button" class="nav__item @(active ? "is-active" : "")" role="tab"
+                        aria-selected="@(active ? "true" : "false")" @onclick="() => SelectGroup(group.Id)">
+                    <svg class="nav__icon" viewBox="0 0 24 24" aria-hidden="true">@((MarkupString)group.Icon)</svg>
+                    <span>@group.Label</span>
+                </button>
+            }
+        </nav>
+
+        <div class="sidebar__foot">
+            <span class="status-dot"></span>
+            <span>v@(_version)</span>
+        </div>
+    </aside>
+
+    @* ================= CONTENT ================= *@
+    <section class="content">
+        <header class="titlebar" @onmousedown="BeginDrag">
+            <div class="titlebar__crumb">
+                @if (Searching)
+                {
+                    <span>Search results for “@_query”</span>
+                }
+                else
+                {
+                    <span>@ActiveGroup.Label</span>
+                }
+            </div>
+            <div class="titlebar__buttons" @onmousedown:stopPropagation="true">
+                <button type="button" class="win-btn" title="Minimize" @onclick="MinimizeWindow">
+                    <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg>
+                </button>
+                <button type="button" class="win-btn win-btn--close" title="Close" @onclick="CloseWindow">
+                    <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="page @(Searching ? "is-searching" : "")">
+        <CascadingValue Value="_query" Name="SettingsQuery">
+
+            @if (!Searching)
+            {
+                <div class="page__head">
+                    <h1>@ActiveGroup.Label</h1>
+                    <p>@ActiveGroup.Blurb</p>
+                </div>
+            }
+
+            @* ---------------- GENERAL ---------------- *@
+            <div class="group @(IsShown("general") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">Counting</div>
+                    <SettingRow Title="Meter Mode" Description="Mob: one mob at a time. All: every mob in the pull. Boss: only the boss fight. Also in the meter's ⋯ menu">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Meter mode">
+                                <button type="button" class="seg__opt @(!settings.AllTargetsMode && !settings.BossFocus ? "is-on" : "")" @onclick="() => SetMeterMode(0)">Mob</button>
+                                <button type="button" class="seg__opt @(settings.AllTargetsMode ? "is-on" : "")" @onclick="() => SetMeterMode(1)">All</button>
+                                <button type="button" class="seg__opt @(!settings.AllTargetsMode && settings.BossFocus ? "is-on" : "")" @onclick="() => SetMeterMode(2)">Boss</button>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+
+                    @if (settings.AllTargetsMode)
+                    {
+                        <SettingRow Title="Pull Ends After" Description="Seconds without any damage before a new pull starts">
+                            <ValueSlot>
+                                <div class="slider">
+                                    <input type="range" min="3" max="60" step="1" value="@settings.AllTargetsGapSeconds"
+                                           @oninput="e => { if (int.TryParse(e.Value?.ToString(), out var v)) settings.AllTargetsGapSeconds = v; }" />
+                                    <span class="slider__value">@(settings.AllTargetsGapSeconds)s</span>
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                    }
+
+                    <SettingRow Title="Only Fights You're In" Description="A mob only counts once you or your party hit it, so other players fighting nearby don't fill the meter">
+                        <ValueSlot><ToggleSwitch Checked="settings.OnlyMyFights" CheckedChanged="v => { settings.OnlyMyFights = v; }" /></ValueSlot>
+                    </SettingRow>
+
+                    <SettingRow Title="Only Me + Party" Description="Ignore other players' damage on the same mob (e.g. the training dummy)">
+                        <ValueSlot><ToggleSwitch Checked="settings.PartyOnly" CheckedChanged="v => { settings.PartyOnly = v; }" /></ValueSlot>
+                    </SettingRow>
+
+                    <SettingRow Title="Combine Summon Damage" Description="Pet and summon damage goes into the owner's row">
+                        <ValueSlot><ToggleSwitch Checked="settings.GroupSummonDamage" CheckedChanged="v => { settings.GroupSummonDamage = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Sessions</div>
+                    <SettingRow Title="Long Dummy Sessions" Description="Training dummy: one session until you clear the meter or stop for 15 min. Breaks of 5 s+ don't count as fight time">
+                        <ValueSlot><ToggleSwitch Checked="settings.DummyLongRun" CheckedChanged="v => { settings.DummyLongRun = v; }" /></ValueSlot>
+                    </SettingRow>
+
+                    <SettingRow Title="New Meter On Zone Change" Description="Fresh count when you change zone or enter a dungeon (boss fights are saved to History first)">
+                        <ValueSlot><ToggleSwitch Checked="settings.AutoResetOnZone" CheckedChanged="v => { settings.AutoResetOnZone = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+            </div>
+
+            @* ---------------- APPEARANCE ---------------- *@
+            <div class="group @(IsShown("look") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">Layout</div>
+                    <div class="tiles" role="radiogroup" aria-label="Layout">
+                        @foreach (var style in _uiStyles)
+                        {
+                            bool on = settings.UiStyle == style.Value;
+                            <button type="button" class="tile @(on ? "is-on" : "")" role="radio" aria-checked="@(on ? "true" : "false")" @onclick="() => SetUiStyle(style.Value)">
+                                <span class="mock mock--@style.PreviewClass">
+                                    <span class="mock__head"></span>
+                                    <span class="mock__bar" style="width:92%"></span>
+                                    <span class="mock__bar" style="width:68%"></span>
+                                    <span class="mock__bar" style="width:45%"></span>
+                                </span>
+                                <span class="tile__label">@style.Label</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Bar colors</div>
+                    <div class="tiles tiles--small" role="radiogroup" aria-label="Bar colors">
+                        @foreach (var theme in _barThemes)
+                        {
+                            bool on = settings.BarTheme == theme.Value;
+                            <button type="button" class="tile @(on ? "is-on" : "")" role="radio" aria-checked="@(on ? "true" : "false")" @onclick="() => settings.BarTheme = theme.Value">
+                                <span class="swatch">
+                                    <i style="background:@theme.A; width:100%"></i>
+                                    <i style="background:@theme.B; width:72%"></i>
+                                    <i style="background:@theme.C; width:48%"></i>
+                                </span>
+                                <span class="tile__label">@theme.Label</span>
+                            </button>
+                        }
+                    </div>
+                    <SettingRow Title="Class Colors" Description="Bars use each player's class colour instead of the theme. In groups: only with 2+ players on the meter">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Class colors">
+                                <button type="button" class="seg__opt @(!settings.UseClassColors && !settings.ClassColorsInGroup ? "is-on" : "")" @onclick="() => SetClassColors(0)">Off</button>
+                                <button type="button" class="seg__opt @(!settings.UseClassColors && settings.ClassColorsInGroup ? "is-on" : "")" @onclick="() => SetClassColors(1)">In groups</button>
+                                <button type="button" class="seg__opt @(settings.UseClassColors ? "is-on" : "")" @onclick="() => SetClassColors(2)">Always</button>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Size &amp; transparency</div>
+                    <SettingRow Title="Meter Size" Description="Scales the whole meter: text, bars and window">
+                        <ValueSlot>
+                            <div class="slider">
+                                <input type="range" min="75" max="300" step="5" value="@_overlayScalePercent" @oninput="OnOverlayScaleInput" />
+                                <span class="slider__value">@_overlayScalePercent%</span>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+
+                    @if (settings.UiStyle != 3)
+                    {
+                        <SettingRow Title="Row Size" Description="Height of each player row">
+                            <ValueSlot>
+                                <div class="slider">
+                                    <input type="range" min="0.5" max="3" step="0.1"
+                                           value="@_playerRowScale.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)" @oninput="OnPlayerRowScaleInput" />
+                                    <span class="slider__value">@_playerRowScale.ToString("F1")×</span>
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                    }
+
+                    <SettingRow Title="Opacity" Description="How see-through the meter's background is">
+                        <ValueSlot>
+                            <div class="slider">
+                                <input type="range" min="10" max="100" step="1" value="@_windowOpacityPercent" @oninput="OnWindowOpacityInput" />
+                                <span class="slider__value">@_windowOpacityPercent%</span>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+
+                    <SettingRow Title="Background Panel" Description="Off: only bars and text are drawn; empty space is click-through">
+                        <ValueSlot><ToggleSwitch Checked="settings.ShowPanelBackground" CheckedChanged="v => { settings.ShowPanelBackground = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Player rows</div>
+                    <SettingRow Title="Show Total Damage" Description="Big number is total damage; DPS shows smaller underneath">
+                        <ValueSlot><ToggleSwitch Checked="settings.ShowTotalDamage" CheckedChanged="v => { settings.ShowTotalDamage = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Relative Bars" Description="Bars are scaled against the top player">
+                        <ValueSlot><ToggleSwitch Checked="settings.RelativeProgressBar" CheckedChanged="v => { settings.RelativeProgressBar = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Highlight Me" Description="Gold outline on your own row when others are on the meter">
+                        <ValueSlot><ToggleSwitch Checked="settings.HighlightSelf" CheckedChanged="v => { settings.HighlightSelf = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Death Count" Description="Skull with the number of deaths on each row">
+                        <ValueSlot><ToggleSwitch Checked="settings.ShowPlayerDeaths" CheckedChanged="v => { settings.ShowPlayerDeaths = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Hide Player Names" Description="Replaces names, handy before sharing screenshots">
+                        <ValueSlot><ToggleSwitch Checked="settings.IsNicknameHidden" CheckedChanged="v => { settings.IsNicknameHidden = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+            </div>
+
+            @* ---------------- WINDOW ---------------- *@
+            <div class="group @(IsShown("window") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">Placement</div>
+                    <SettingRow Title="Always On Top" Description="Keep the meter above the game. Turn off if you keep it on a second screen and want other windows over it">
+                        <ValueSlot><ToggleSwitch Checked="settings.MeterOnTop" CheckedChanged="v => { settings.MeterOnTop = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Click-through Lock" Description="The meter ignores the mouse so it never blocks a click. Hold Alt to use it while locked">
+                        <ValueSlot><ToggleSwitch Checked="settings.LockClickThrough" CheckedChanged="v => { settings.LockClickThrough = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Locked Opacity" Description="How visible the meter is while locked, so game menus underneath stay readable">
+                        <ValueSlot>
+                            <div class="slider">
+                                <input type="range" min="10" max="100" step="5" value="@((int)Math.Round(settings.LockedOpacity * 100))" @oninput="OnLockedOpacityInput" />
+                                <span class="slider__value">@((int)Math.Round(settings.LockedOpacity * 100))%</span>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Auto-hide</div>
+                    <SettingRow Title="Auto-hide" Description="Out of combat: fades when nobody has fought for a while, back on the first hit. + Menus: also while an AION 2 menu is open. Hold Alt to see it anyway">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Auto-hide">
+                                <button type="button" class="seg__opt @(AutoHide == 0 ? "is-on" : "")" @onclick="() => SetAutoHide(0)">Never</button>
+                                <button type="button" class="seg__opt @(AutoHide == 1 ? "is-on" : "")" @onclick="() => SetAutoHide(1)">Out of combat</button>
+                                <button type="button" class="seg__opt @(AutoHide == 2 ? "is-on" : "")" @onclick="() => SetAutoHide(2)">+ Menus</button>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                    @if (settings.AutoHideOutOfCombat)
+                    {
+                        <SettingRow Title="Hide After" Description="Seconds without any damage">
+                            <ValueSlot>
+                                <div class="seg" role="radiogroup" aria-label="Hide after">
+                                    @foreach (var secs in new[] { 30, 60, 120, 300 })
+                                    {
+                                        var s = secs;
+                                        <button type="button" class="seg__opt @(settings.AutoHideSeconds == s ? "is-on" : "")" @onclick="() => settings.AutoHideSeconds = s">@s s</button>
+                                    }
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                    }
+                </div>
+
+                <div class="card">
+                    <div class="card__title">With the game</div>
+                    <SettingRow Title="Start With AION 2" Description="The meter starts by itself when the game starts (a small helper runs at Windows logon)">
+                        <ValueSlot><ToggleSwitch Checked="_autoStart" CheckedChanged="SetAutoStart" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Close With AION 2" Description="Closes the meter 30 s after the game closes (fights are saved first)">
+                        <ValueSlot><ToggleSwitch Checked="settings.CloseWithGame" CheckedChanged="v => { settings.CloseWithGame = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+            </div>
+
+            @* ---------------- HOTKEYS ---------------- *@
+            <div class="group @(IsShown("hotkeys") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">Meter</div>
+                    <SettingRow Title="Show / Hide Meter" Description="Click the box, then press the keys">
+                        <ValueSlot>
+                            <input class="key @(_capturingHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingHotkey ? "Press keys…" : settings.ToggleVisibilityHotkey)"
+                                   @onfocus="OnHotkeyFocus" @onblur="OnHotkeyBlur" @onkeydown="OnHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Lock / Unlock" Description="Toggles click-through (the way to unlock from inside the game)">
+                        <ValueSlot>
+                            <input class="key @(_capturingLockHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingLockHotkey ? "Press keys…" : settings.LockHotkey)"
+                                   @onfocus="() => _capturingLockHotkey = true" @onblur="() => _capturingLockHotkey = false"
+                                   @onkeydown="OnLockHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Clear Meter" Description="Starts a fresh count">
+                        <ValueSlot>
+                            <input class="key @(_capturingClearHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingClearHotkey ? "Press keys…" : settings.ClearMeterHotkey)"
+                                   @onfocus="() => _capturingClearHotkey = true" @onblur="() => _capturingClearHotkey = false"
+                                   @onkeydown="OnClearHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Last Fight Result" Description="Opens the last boss fight's result; ◀ ▶ go to earlier ones">
+                        <ValueSlot>
+                            <input class="key @(_capturingLastFightHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingLastFightHotkey ? "Press keys…" : settings.LastFightHotkey)"
+                                   @onfocus="() => _capturingLastFightHotkey = true" @onblur="() => _capturingLastFightHotkey = false"
+                                   @onkeydown="OnLastFightHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Start / Stop Recording" Description="Records your screen until you press it again (a sound plays on start and stop)">
+                        <ValueSlot>
+                            <input class="key @(_capturingRecordHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingRecordHotkey ? "Press keys…" : settings.RecordHotkey)"
+                                   @onfocus="() => _capturingRecordHotkey = true" @onblur="() => _capturingRecordHotkey = false"
+                                   @onkeydown="OnRecordHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Panels</div>
+                    <SettingRow Title="Control Panel" Description="Characters, weekly progress and events">
+                        <ValueSlot>
+                            <input class="key @(_capturingTimersHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingTimersHotkey ? "Press keys…" : settings.EventTimersHotkey)"
+                                   @onfocus="() => _capturingTimersHotkey = true" @onblur="() => _capturingTimersHotkey = false"
+                                   @onkeydown="OnTimersHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Boss Pop-ups Again" Description="Brings the boss pop-ups back for 10 s (or shows the next field boss coming up)">
+                        <ValueSlot>
+                            <input class="key @(_capturingBossHotkey ? "is-active" : "")" readonly
+                                   value="@(_capturingBossHotkey ? "Press keys…" : settings.BossAlertsHotkey)"
+                                   @onfocus="() => _capturingBossHotkey = true" @onblur="() => _capturingBossHotkey = false"
+                                   @onkeydown="OnBossHotkeyKeyDown" @onkeydown:preventDefault="true" />
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+            </div>
+
+            @* ---------------- NOTIFICATIONS ---------------- *@
+            <div class="group @(IsShown("alerts") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">Fights</div>
+                    <SettingRow Title="After A Boss Fight" Description="Result card slides into the bottom-right corner (click it for the full summary). + Copy image also puts the summary picture on the clipboard, ready to paste in Discord">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="After a boss fight">
+                                <button type="button" class="seg__opt @(AfterFight == 0 ? "is-on" : "")" @onclick="() => SetAfterFight(0)">Nothing</button>
+                                <button type="button" class="seg__opt @(AfterFight == 1 ? "is-on" : "")" @onclick="() => SetAfterFight(1)">Card</button>
+                                <button type="button" class="seg__opt @(AfterFight == 2 ? "is-on" : "")" @onclick="() => SetAfterFight(2)">Card + copy image</button>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Server Lag Alert" Description="LAG chip on the meter when the game server goes silent for 2 s+ while your client keeps sending">
+                        <ValueSlot><ToggleSwitch Checked="settings.LagStallAlert" CheckedChanged="v => { settings.LagStallAlert = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Discord</div>
+                    <SettingRow Title="Post Kills To Discord" Description="After a boss kill (not alliance field bosses, not wipes) the result picture is posted to a Discord channel, but only when a listed friend was in your party">
+                        <ValueSlot><ToggleSwitch Checked="settings.DiscordShareEnabled" CheckedChanged="v => { settings.DiscordShareEnabled = v; }" /></ValueSlot>
+                    </SettingRow>
+                    @if (settings.DiscordShareEnabled)
+                    {
+                        <SettingRow Title="Webhook URL" Description="Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL (needs Manage Webhooks on that server)">
+                            <ValueSlot>
+                                <input type="password" class="text" style="width:260px" placeholder="https://discord.com/api/webhooks/…" value="@settings.DiscordWebhookUrl"
+                                       @onchange="e => { settings.DiscordWebhookUrl = e.Value?.ToString() ?? string.Empty; _discordTest = null; }" />
+                                <button type="button" class="btn" @onclick="SendDiscordTest">Send test</button>
+                            </ValueSlot>
+                        </SettingRow>
+                        @if (_discordTest is not null)
+                        {
+                            <p class="muted" style="margin:2px 0 8px">@_discordTest</p>
+                        }
+                        <SettingRow Title="Friends" Description="Their character names, separated by commas">
+                            <ValueSlot>
+                                <input type="text" class="text" style="width:260px" value="@settings.DiscordFriends"
+                                       @onchange="e => { settings.DiscordFriends = e.Value?.ToString() ?? string.Empty; }" />
+                            </ValueSlot>
+                        </SettingRow>
+                        <SettingRow Title="Friends Needed" Description="How many of them must be in the party">
+                            <ValueSlot>
+                                <div class="seg" role="radiogroup" aria-label="Friends needed">
+                                    @for (int n = 1; n <= 3; n++)
+                                    {
+                                        int v = n;
+                                        <button type="button" class="seg__opt @(settings.DiscordMinFriends == v ? "is-on" : "")" @onclick="() => settings.DiscordMinFriends = v">@(v)+</button>
+                                    }
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                    }
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Skill ready</div>
+                    <SettingRow Title="Skill Ready Alert" Description="A small glowing icon beside your character when a chosen skill comes off cooldown in combat. Display only, it never presses anything">
+                        <ValueSlot><ToggleSwitch Checked="settings.ReadyAlert" CheckedChanged="v => { settings.ReadyAlert = v; }" /></ValueSlot>
+                    </SettingRow>
+                    @if (settings.ReadyAlert)
+                    {
+                        <SettingRow Title="Skills" Description="Any class. The first one that is ready shows. Only skills you cast in the last 10 min count, so other classes' skills stay quiet until you play that class">
+                            <ValueSlot>
+                                <div class="chips">
+                                    @foreach (var name in ReadySkills)
+                                    {
+                                        var n = name;
+                                        <span class="skill-chip">
+                                            @if (IconFor(n) is { } url) { <img src="@url" alt="" /> }
+                                            <span>@n</span>
+                                            <button type="button" title="Remove" @onclick="() => ToggleReadySkill(n)">
+                                                <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+                                            </button>
+                                        </span>
+                                    }
+                                    <button type="button" class="chip chip--add @(_skillPickerOpen ? "is-on" : "")" @onclick="OpenSkillPicker">@(_skillPickerOpen ? "Done" : "+ Add skill")</button>
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                        @if (_skillPickerOpen)
+                        {
+                            <div class="picker">
+                                <div class="picker__bar">
+                                    <div class="seg seg--wrap" role="radiogroup" aria-label="Class">
+                                        @foreach (var (prefix, cls) in _classes)
+                                        {
+                                            var p = prefix;
+                                            <button type="button" class="seg__opt @(_skillClass == p ? "is-on" : "")" @onclick="() => _skillClass = p">@cls</button>
+                                        }
+                                    </div>
+                                    <input class="text picker__search" placeholder="Filter skills" value="@_skillQuery" @oninput="e => _skillQuery = e.Value?.ToString() ?? string.Empty" />
+                                </div>
+                                <div class="skill-grid">
+                                    @foreach (var (name, icon) in ClassSkills)
+                                    {
+                                        var n = name;
+                                        bool on = ReadySkills.Contains(n, StringComparer.OrdinalIgnoreCase);
+                                        <button type="button" class="skill-tile @(on ? "is-on" : "")" @onclick="() => ToggleReadySkill(n)">
+                                            @if (icon is not null) { <img src="@icon" alt="" /> } else { <span class="skill-tile__blank"></span> }
+                                            <span>@n</span>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        <SettingRow Title="Sound" Description="A short sound each time it comes up">
+                            <ValueSlot><ToggleSwitch Checked="settings.ReadyAlertSound" CheckedChanged="v => { settings.ReadyAlertSound = v; }" /></ValueSlot>
+                        </SettingRow>
+                    }
+                </div>
+            </div>
+
+            @* ---------------- TIMERS & BOSSES ---------------- *@
+            <div class="group @(IsShown("timers") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">You</div>
+                    <SettingRow Title="Region" Description="Daily and weekly reset times differ per region. Auto reads it from your character's server">
+                        <ValueSlot>
+                            <div class="seg seg--wrap" role="radiogroup" aria-label="Timer region">
+                                <button type="button" class="seg__opt @(settings.AutoTimerRegion ? "is-on" : "")" @onclick="() => settings.AutoTimerRegion = true">Auto</button>
+                                @foreach (var (id, label) in _timerRegions)
+                                {
+                                    <button type="button" class="seg__opt @(!settings.AutoTimerRegion && settings.TimerRegion == id ? "is-on" : "") @(settings.AutoTimerRegion && settings.TimerRegion == id ? "is-detected" : "")" @onclick="() => { settings.AutoTimerRegion = false; settings.TimerRegion = id; }">@label</button>
+                                }
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Field bosses</div>
+                    <SettingRow Title="Map Pop-up" Description="5 min before a field boss respawns, a card with its map spot slides in (bottom-right). Open the world map (M) now and then to keep the times fresh">
+                        <ValueSlot><ToggleSwitch Checked="settings.FieldBossMapAlerts" CheckedChanged="v => { settings.FieldBossMapAlerts = v; }" /></ValueSlot>
+                    </SettingRow>
+                    @if (settings.FieldBossMapAlerts)
+                    {
+                        <SettingRow Title="Pop-up Before" Description="How early the card comes up before the respawn">
+                            <ValueSlot>
+                                <div class="seg" role="radiogroup" aria-label="Pop-up before">
+                                    @foreach (var minutes in new[] { 5, 10, 15, 30 })
+                                    {
+                                        var m = minutes;
+                                        <button type="button" class="seg__opt @(settings.FieldBossLeadMinutes == m ? "is-on" : "")" @onclick="() => settings.FieldBossLeadMinutes = m">@m min</button>
+                                    }
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                        <SettingRow Title="Bosses" Description="Pick which field bosses get a pop-up (glowing = on). Better drops: the higher-level ones">
+                            <ValueSlot>
+                                <div class="seg" role="radiogroup" aria-label="Field boss preset">
+                                    <button type="button" class="seg__opt @(FieldPreset == 1 ? "is-on" : "")" @onclick="() => SetFieldPreset(1)">Better drops</button>
+                                    <button type="button" class="seg__opt @(FieldPreset == 2 ? "is-on" : "")" @onclick="() => SetFieldPreset(2)">All</button>
+                                    <button type="button" class="seg__opt @(FieldPreset == 0 ? "is-on" : "")" @onclick="() => SetFieldPreset(0)">Custom</button>
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                        <div class="boss-grid">
+                            @if (FieldBossList.Count == 0)
+                            {
+                                <span class="muted">Loading the boss list... reopen this page in a moment.</span>
+                            }
+                            @foreach (var boss in FieldBossList)
+                            {
+                                var b = boss;
+                                <button type="button" class="boss @(IsFieldBossOn(b) ? "is-on" : "") @(b.Better ? "boss--better" : "")" @onclick="() => ToggleFieldBoss(b.Name)">
+                                    <span class="boss__name">@b.Name</span>
+                                    <span class="boss__lvl">@b.Level.Replace("Level ", "Lv ")</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Pets</div>
+                    <SettingRow Title="Pet Tracker" Description="While you fight a monster whose souls go to a pet you haven't maxed, the meter shows that pet's progress, and a pop-up comes when a pet levels up. Set your pets in Control Panel → Pets">
+                        <ValueSlot><ToggleSwitch Checked="settings.PetTracker" CheckedChanged="v => { settings.PetTracker = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Scheduled bosses</div>
+                    <SettingRow Title="Spawn Pop-up" Description="Banner 1 h, 15 min and 3 min before the bosses people farm spawn (with a sound)">
+                        <ValueSlot><ToggleSwitch Checked="settings.BossAlerts" CheckedChanged="v => { settings.BossAlerts = v; }" /></ValueSlot>
+                    </SettingRow>
+                    @if (settings.BossAlerts)
+                    {
+                        <SettingRow Title="Bosses" Description="Times for your region">
+                            <ValueSlot>
+                                <div class="chips">
+                                    @foreach (var (id, label) in _bossAlertEvents)
+                                    {
+                                        <button type="button" class="chip @(IsBossAlertOn(id) ? "is-on" : "")" @onclick="() => ToggleBossAlert(id)">@label</button>
+                                    }
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+
+                        @foreach (var boss in AionDpsMeter.UI.Services.Timers.KillTimerService.Bosses)
+                        {
+                            var b = boss;
+                            <SettingRow Title="@($"{b.Name} kill timer")" Description="@($"{KillStatus(b)}. Respawns {b.Respawn.TotalHours:0} h after the kill; kills you're in are recorded automatically")">
+                                <ValueSlot>
+                                    <div class="chips">
+                                        <button type="button" class="chip" @onclick="() => _killTimers.MarkKilled(b.Id, DateTime.UtcNow)">Killed now</button>
+                                        <input type="time" class="text text--time" title="Killed at (today, or yesterday if later than now)" @onchange="e => OnKillTimeChanged(b.Id, e)" />
+                                        <button type="button" class="chip" @onclick="() => _killTimers.Clear(b.Id)">Clear</button>
+                                    </div>
+                                </ValueSlot>
+                            </SettingRow>
+                        }
+                    }
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Events</div>
+                    <SettingRow Title="Event Pop-ups" Description="Banner shortly before the events you pick start, then a short LIVE banner">
+                        <ValueSlot><ToggleSwitch Checked="settings.EventNotifications" CheckedChanged="v => { settings.EventNotifications = v; }" /></ValueSlot>
+                    </SettingRow>
+                    @if (settings.EventNotifications)
+                    {
+                        <SettingRow Title="Sound" Description="Chime when an event banner comes up">
+                            <ValueSlot><ToggleSwitch Checked="settings.EventNotifySound" CheckedChanged="v => { settings.EventNotifySound = v; }" /></ValueSlot>
+                        </SettingRow>
+                        <SettingRow Title="Warn Before" Description="How early the banner comes up">
+                            <ValueSlot>
+                                <div class="seg" role="radiogroup" aria-label="Notify before">
+                                    @foreach (var minutes in new[] { 1, 2, 5, 10 })
+                                    {
+                                        var m = minutes;
+                                        <button type="button" class="seg__opt @(settings.EventNotifyLeadMinutes == m ? "is-on" : "")" @onclick="() => settings.EventNotifyLeadMinutes = m">@m min</button>
+                                    }
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                        <SettingRow Title="Events" Description="Which events get a banner">
+                            <ValueSlot>
+                                <div class="chips">
+                                    @foreach (var (id, label) in _notifyEvents)
+                                    {
+                                        <button type="button" class="chip @(IsNotifyOn(id) ? "is-on" : "")" @onclick="() => ToggleNotify(id)">@label</button>
+                                    }
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                    }
+                </div>
+            </div>
+
+            @* ---------------- RECORDING ---------------- *@
+            <div class="group @(IsShown("recording") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">Boss fight videos</div>
+                    <SettingRow Title="Record Boss Fights" Description="Starts when a boss fight starts and stops when it ends (GPU capture, near-zero CPU)">
+                        <ValueSlot><ToggleSwitch Checked="settings.RecorderEnabled" CheckedChanged="v => { settings.RecorderEnabled = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Quality" Description="High ≈ 250 MB/min · Balanced ≈ 150 MB/min · Small (30 fps) ≈ 60 MB/min at 4K">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Recording quality">
+                                <button type="button" class="seg__opt @(settings.RecorderQuality == 0 ? "is-on" : "")" @onclick="() => settings.RecorderQuality = 0">High</button>
+                                <button type="button" class="seg__opt @(settings.RecorderQuality == 1 ? "is-on" : "")" @onclick="() => settings.RecorderQuality = 1">Balanced</button>
+                                <button type="button" class="seg__opt @(settings.RecorderQuality == 2 ? "is-on" : "")" @onclick="() => settings.RecorderQuality = 2">Small</button>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Record Video Now" Description="@(recorder.IsRecording ? "Recording now (the meter shows a red ● timer). Press Stop, the red button on the meter, or the hotkey to save it; stops by itself after 2 hours" : $"Records your screen, not just boss fights, until you press Stop. Also: the ● REC button on the meter, or {settings.RecordHotkey}")">
+                        <ValueSlot><button type="button" class="btn" @onclick="ToggleRecording">@(recorder.IsRecording ? "■ Stop" : "● Start")</button></ValueSlot>
+                    </SettingRow>
+                    @if (!string.IsNullOrEmpty(recorder.LastError))
+                    {
+                        <SettingRow Title="Recorder Problem" Description="@recorder.LastError" />
+                    }
+                    <SettingRow Title="Game Audio" Description="Records what you hear (also in manual videos)">
+                        <ValueSlot><ToggleSwitch Checked="settings.RecorderAudio" CheckedChanged="v => { settings.RecorderAudio = v; }" /></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Save Folder" Description="@settings.RecorderFolder">
+                        <ValueSlot><button type="button" class="btn" @onclick="OpenRecordingFolder">Open folder</button></ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Advanced</div>
+                    <SettingRow Title="Pre-roll" Description="Keeps a short rolling buffer so videos include the start of the pull">
+                        <ValueSlot><ToggleSwitch Checked="settings.RecorderPreRoll" CheckedChanged="v => { settings.RecorderPreRoll = v; }" /></ValueSlot>
+                    </SettingRow>
+                    @if (settings.RecorderPreRoll)
+                    {
+                        <SettingRow Title="Pre-roll Length" Description="Seconds kept from before the fight was detected">
+                            <ValueSlot>
+                                <div class="slider">
+                                    <input type="range" min="5" max="60" step="5" value="@settings.RecorderPreRollSeconds" @oninput="OnPreRollSecondsInput" />
+                                    <span class="slider__value">@settings.RecorderPreRollSeconds s</span>
+                                </div>
+                            </ValueSlot>
+                        </SettingRow>
+                    }
+                    <SettingRow Title="Monitor" Description="Which screen to record (0 = main screen)">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Monitor">
+                                @for (int i = 0; i < 3; i++)
+                                {
+                                    var index = i;
+                                    <button type="button" class="seg__opt @(settings.RecorderMonitor == index ? "is-on" : "")" @onclick="() => settings.RecorderMonitor = index">@index</button>
+                                }
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Delete Videos After" Description="Videos older than this are deleted automatically (checked every hour)">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Delete videos after">
+                                @foreach (var (days, label) in new[] { (3, "3 days"), (7, "7 days"), (14, "14 days"), (0, "Never") })
+                                {
+                                    var d = days;
+                                    <button type="button" class="seg__opt @(settings.RecorderRetentionDays == d ? "is-on" : "")" @onclick="() => settings.RecorderRetentionDays = d">@label</button>
+                                }
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Folder Size Limit" Description="Oldest videos are deleted past this (and 20 GB is always kept free)">
+                        <ValueSlot>
+                            <div class="seg" role="radiogroup" aria-label="Folder size limit">
+                                @foreach (var gb in new[] { 25, 50, 100, 200 })
+                                {
+                                    var g = gb;
+                                    <button type="button" class="seg__opt @(settings.RecorderMaxGB == g ? "is-on" : "")" @onclick="() => settings.RecorderMaxGB = g">@g GB</button>
+                                }
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+            </div>
+
+            @* ---------------- DATA ---------------- *@
+            <div class="group @(IsShown("data") ? "" : "is-hidden")">
+
+                <div class="card">
+                    <div class="card__title">History</div>
+                    <SettingRow Title="Keep History For" Description="Older fights are deleted automatically">
+                        <ValueSlot>
+                            <div class="num">
+                                <input type="text" inputmode="numeric" maxlength="4" value="@settings.HistoryRetantionPeriod" @oninput="OnRetentionPeriodInput" />
+                                <span>days</span>
+                            </div>
+                        </ValueSlot>
+                    </SettingRow>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Troubleshooting</div>
+                    <SettingRow Title="Record Game Messages (3 min)" Description="@(AionDpsMeter.Services.PacketProcessing.PacketDump.IsRecording ? $"Recording until {AionDpsMeter.Services.PacketProcessing.PacketDump.RecordingUntil:HH:mm:ss} to {System.IO.Path.GetFileName(AionDpsMeter.Services.PacketProcessing.PacketDump.CurrentFile)}" : "Saves decoded game messages to the Logs folder (stays on this PC), for finding new data")">
+                        <ValueSlot><button type="button" class="btn" @onclick="() => AionDpsMeter.Services.PacketProcessing.PacketDump.Start(TimeSpan.FromMinutes(3))">Start</button></ValueSlot>
+                    </SettingRow>
+                    <SettingRow Title="Log Raw Packets" Description="Developer: save incoming network packets to the PacketLogs folder">
+                        <ValueSlot><ToggleSwitch Checked="settings.IsPacketLoggingEnabled" CheckedChanged="v => { settings.IsPacketLoggingEnabled = v; }" /></ValueSlot>
+                    </SettingRow>
+                </div>
+            </div>
+
+            @if (Searching)
+            {
+                <p class="no-results">Only matching settings are shown. Clear the search to browse by section.</p>
+            }
+
+        </CascadingValue>
+        </main>
+    </section>
+</div>

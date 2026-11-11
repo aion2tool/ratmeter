@@ -1,0 +1,151 @@
+﻿using AionDpsMeter.Services.Models;
+using System.Collections.ObjectModel;
+
+namespace AionDpsMeter.UI.ViewModels
+{
+    public sealed class SkillStatsViewModel : ViewModelBase
+    {
+        private readonly SkillStats _stats;
+        private bool _isExpanded;
+
+        public SkillStatsViewModel(SkillStats stats)
+        {
+            _stats = stats;
+
+            // Initialize children collection for summon groups
+            if (_stats.IsSummonGroup && _stats.SummonChildren.Count > 0)
+            {
+                foreach (var child in _stats.SummonChildren)
+                {
+                    SummonChildren.Add(new SkillStatsViewModel(child));
+                }
+            }
+
+            // Summon children should be collapsed by default.
+            _isExpanded = false;
+        }
+
+        public long     SkillId            => _stats.SkillId;
+        public string   SkillName          => (_stats.IsDot ? "[DOT] " : "")+ _stats.SkillName;
+        public string?  SkillIcon          => _stats.SkillIcon;
+        public bool     HasSkillIcon       => !string.IsNullOrEmpty(_stats.SkillIcon);
+        public bool[]   SpecializationFlags => _stats.SpecializationFlags;
+
+        public bool IsSummonGroup => _stats.IsSummonGroup;
+        public bool HasSummonChildren => _stats.IsSummonGroup && SummonChildren.Count > 0;
+        public ObservableCollection<SkillStatsViewModel> SummonChildren { get; } = new();
+
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set => SetProperty(ref _isExpanded, value);
+        }
+
+        // ── Damage ────────────────────────────────────────────────────────────
+        public long   TotalDamage          => _stats.TotalDamage;
+        public string TotalDamageFormatted => DamageFormatter.Format(_stats.TotalDamage);
+        public double DamagePercentage     => _stats.DamagePercentage;
+        public string DamagePercentageFormatted => DamageFormatter.FormatRate(_stats.DamagePercentage);
+        public double DamagePerSecond      => _stats.DamagePerSecond;
+        public string DpsFormatted         => DamageFormatter.Format(_stats.DamagePerSecond);
+
+        // ── Hit stats ─────────────────────────────────────────────────────────
+        public int    HitCount             => _stats.HitCount;
+        public string HitCountFormatted    => _stats.HitCount.ToString();
+        public int    CriticalHits         => _stats.CriticalHits;
+        public int    BackAttacks          => _stats.BackAttacks;
+        public int FrontAttacks            => _stats.FrontAttacks;
+        public int    PerfectHits          => _stats.PerfectHits;
+        public int    DoubleDamageHits     => _stats.DoubleDamageHits;
+        public int    ParryHits            => _stats.ParryHits;
+
+        // ── Per-hit values ────────────────────────────────────────────────────
+        public double AverageDamage        => _stats.AverageDamage;
+        public string AverageDamageFormatted => DamageFormatter.Format(_stats.AverageDamage);
+        public long   MaxHit               => _stats.MaxHit;
+        public string MaxHitFormatted      => $"{_stats.MaxHit:N0}";
+        /// <summary>Sentinel-safe minimum hit (0 when no hit has been recorded).</summary>
+        public long   MinHit               => _stats.SafeMinHit;
+        public string MinHitFormatted      => $"{_stats.SafeMinHit:N0}";
+
+        // ── Rates ─────────────────────────────────────────────────────────────
+        public double CriticalRate           => _stats.CriticalRate;
+        public string CriticalRateFormatted  => DamageFormatter.FormatRateRounded(_stats.CriticalRate);
+        public double BackAttackRate         => _stats.BackAttackRate;
+        public string BackAttackRateFormatted => DamageFormatter.FormatRateRounded(_stats.BackAttackRate);
+        public double FrontAttackRate => _stats.FrontAttackRate;
+        public string FrontAttackRateFormatted => DamageFormatter.FormatRateRounded(_stats.FrontAttackRate);
+        public double PerfectRate            => _stats.PerfectRate;
+        public string PerfectRateFormatted   => DamageFormatter.FormatRateRounded(_stats.PerfectRate);
+        public double DoubleDamageRate       => _stats.DoubleDamageRate;
+        public string DoubleDamageRateFormatted => DamageFormatter.FormatRateRounded(_stats.DoubleDamageRate);
+        public double ParryRate              => _stats.ParryRate;
+        public string ParryRateFormatted     => DamageFormatter.FormatRateRounded(_stats.ParryRate);
+
+        public void Update(AionDpsMeter.Services.Models.SkillStats stats)
+        {
+            _stats.TotalDamage        = stats.TotalDamage;
+            _stats.HitCount           = stats.HitCount;
+            _stats.CriticalHits       = stats.CriticalHits;
+            _stats.BackAttacks        = stats.BackAttacks;
+            _stats.FrontAttacks       = stats.FrontAttacks;
+            _stats.PerfectHits        = stats.PerfectHits;
+            _stats.DoubleDamageHits   = stats.DoubleDamageHits;
+            _stats.ParryHits          = stats.ParryHits;
+            _stats.MaxHit             = stats.MaxHit;
+            _stats.MinHit             = stats.MinHit;
+            _stats.DamagePerSecond    = stats.DamagePerSecond;
+            _stats.DamagePercentage   = stats.DamagePercentage;
+            _stats.IsDot              = stats.IsDot;
+            _stats.SpecializationFlags = stats.SpecializationFlags;
+            _stats.IsSummonGroup      = stats.IsSummonGroup;
+
+            // Update summon children if needed
+            if (stats.IsSummonGroup && stats.SummonChildren.Count > 0)
+            {
+                SummonChildren.Clear();
+                foreach (var child in stats.SummonChildren)
+                {
+                    SummonChildren.Add(new SkillStatsViewModel(child));
+                }
+            }
+
+            OnPropertyChanged(nameof(TotalDamage));
+            OnPropertyChanged(nameof(TotalDamageFormatted));
+            OnPropertyChanged(nameof(DamagePercentage));
+            OnPropertyChanged(nameof(DamagePercentageFormatted));
+            OnPropertyChanged(nameof(DamagePerSecond));
+            OnPropertyChanged(nameof(DpsFormatted));
+            OnPropertyChanged(nameof(HitCount));
+            OnPropertyChanged(nameof(HitCountFormatted));
+            OnPropertyChanged(nameof(CriticalHits));
+            OnPropertyChanged(nameof(BackAttacks));
+            OnPropertyChanged(nameof(FrontAttacks));
+            OnPropertyChanged(nameof(PerfectHits));
+            OnPropertyChanged(nameof(DoubleDamageHits));
+            OnPropertyChanged(nameof(ParryHits));
+            OnPropertyChanged(nameof(AverageDamage));
+            OnPropertyChanged(nameof(AverageDamageFormatted));
+            OnPropertyChanged(nameof(MaxHit));
+            OnPropertyChanged(nameof(MaxHitFormatted));
+            OnPropertyChanged(nameof(MinHit));
+            OnPropertyChanged(nameof(MinHitFormatted));
+            OnPropertyChanged(nameof(CriticalRate));
+            OnPropertyChanged(nameof(CriticalRateFormatted));
+            OnPropertyChanged(nameof(BackAttackRate));
+            OnPropertyChanged(nameof(BackAttackRateFormatted));
+            OnPropertyChanged(nameof(FrontAttackRate));
+            OnPropertyChanged(nameof(FrontAttackRateFormatted));
+            OnPropertyChanged(nameof(PerfectRate));
+            OnPropertyChanged(nameof(PerfectRateFormatted));
+            OnPropertyChanged(nameof(DoubleDamageRate));
+            OnPropertyChanged(nameof(DoubleDamageRateFormatted));
+            OnPropertyChanged(nameof(ParryRate));
+            OnPropertyChanged(nameof(ParryRateFormatted));
+            OnPropertyChanged(nameof(SkillName));
+            OnPropertyChanged(nameof(SpecializationFlags));
+            OnPropertyChanged(nameof(IsSummonGroup));
+            OnPropertyChanged(nameof(HasSummonChildren));
+        }
+    }
+}

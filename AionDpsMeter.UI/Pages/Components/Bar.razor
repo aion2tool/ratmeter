@@ -1,0 +1,11 @@
+<div class="bar" title="@Label @Value/@Max">
+    <span class="bar-l">@Label</span>
+    <span class="bar-t"><span class="bar-f" style="width:@(Max <= 0 ? 0 : Math.Min(100, Value * 100.0 / Max))%"></span></span>
+    <span class="bar-v">@Value/@Max</span>
+</div>
+
+@code {
+    [Parameter] public int Value { get; set; }
+    [Parameter] public int Max { get; set; }
+    [Parameter] public string Label { get; set; } = "";
+}

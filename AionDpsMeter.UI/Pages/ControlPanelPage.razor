@@ -1,0 +1,205 @@
+@page "/control-panel"
+@implements IDisposable
+@using AionDpsMeter.Services.Services.Roster
+@using AionDpsMeter.Services.Services.Pets
+
+<div class="cp">
+    <header class="cp-top" @onmousedown="BeginDrag">
+        <div class="cp-brand"><span class="cp-mark"></span><b>Control Panel</b><span class="cp-sub">@WeekLabel()</span></div>
+        <nav class="cp-tabs" @onmousedown:stopPropagation="true">
+            <button class="@(Tab == "roster" ? "on" : "")" @onclick='() => Tab = "roster"'>Roster</button>
+            <button class="@(Tab == "events" ? "on" : "")" @onclick='() => Tab = "events"'>Events</button>
+            <button class="@(Tab == "pets" ? "on" : "")" @onclick='() => Tab = "pets"'>Pets</button>
+        </nav>
+        <div class="cp-win" @onmousedown:stopPropagation="true">
+            <button title="Minimize" @onclick="Minimize">–</button><button title="Close" @onclick="Close">✕</button>
+        </div>
+    </header>
+
+    @if (Tab == "roster")
+    {
+        <section class="cp-body roster">
+            @if (Pending > 0)
+            {
+                <div class="card notice">@Pending gather / craft / Kina update@(Pending == 1 ? "" : "s") waiting: the meter hasn't seen which character you're on since it started. Switch character or log out and back in, and they'll count for that character.</div>
+            }
+            <div class="server-row">
+                <span class="lbl">Shared <i>every character</i></span>
+                <div class="tasks">
+                    @foreach (var t in Defs(server: true))
+                    {
+                        <TaskPill Def="t" Compact="true" Value="@ServerValue(t.Id)" OnStep="d => Svc.Tick(null, t.Id, d)" />
+                    }
+                </div>
+            </div>
+
+            @if (BestNext() is { } best)
+            {
+                <div class="best">@IconStar<span>Log in next: <b>@best.Name</b> · @TasksLeft(best.Week) left</span></div>
+            }
+
+            <div class="rows">
+                @foreach (var c in Characters())
+                {
+                    bool open = IsOpen(c);
+                    int left = TasksLeft(c.Week);
+                    int total = Defs(false).Count();
+                    <article class="row @(c.IsCurrent ? "cur" : "") @(left == 0 ? "done" : "")">
+                        <button class="row-h" @onclick="() => Toggle(c)">
+                            <span class="nm">@c.Name</span>
+                            <span class="muted">@c.Week.ClassName</span>
+                            <span class="prog"><i style="width:@(total == 0 ? 100 : (total - left) * 100 / total)%"></i></span>
+                            <span class="left">@(left == 0 ? "✓ done" : left + " left")</span>
+                            <span class="seen">@(c.IsCurrent ? "playing now" : Ago(c.Week.LastSeenUtc))</span>
+                            <span class="chev">@(open ? "▾" : "▸")</span>
+                        </button>
+                        @if (open)
+                        {
+                            <div class="row-b">
+                                <div class="tasks">
+                                    @foreach (var t in Defs(server: false).OrderBy(t => c.Week.Tasks.GetValueOrDefault(t.Id) >= t.Max ? 1 : 0))
+                                    {
+                                        <TaskPill Def="t" Compact="true" Value="@c.Week.Tasks.GetValueOrDefault(t.Id)" OnStep="d => Svc.Tick(c.Name, t.Id, d)" />
+                                    }
+                                </div>
+                                <div class="meta">
+                                    <span title="@GatherTitle(c.Week)">Pure Odyle <b>@c.Week.Gathered.GetValueOrDefault(PureOdyle)</b></span>
+                                    <span title="@CraftTitle(c.Week)">Crafted <b>@RosterRecipes.EnergyCrafts(c.Week)</b></span>
+                                    <span>Kina <b>@Short(c.Week.Kina)</b> @KinaDelta(c.Week)</span>
+                                    <span>Energy <b>@(c.Week.EnergyBasic?.ToString() ?? "—")</b>/840 · <b>@(c.Week.EnergyCharged?.ToString() ?? "—")</b>/2000</span>
+                                    @if (Clears.TryGetValue(c.Name, out var bosses) && bosses.Count > 0)
+                                    {
+                                        <span>Clears <b>@bosses.Values.Sum()</b> (@string.Join(", ", bosses.Select(b => b.Key + " ×" + b.Value)))</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </article>
+                }
+                @if (!Characters().Any())
+                {
+                    <p class="muted hint">Log in to a character to start tracking — nothing pops up; open this panel any time.</p>
+                }
+            </div>
+
+            <details class="edit">
+                <summary>Edit tasks</summary>
+                @foreach (var t in EditDefs)
+                {
+                    <div class="edit-row">
+                        <input value="@t.Name" @onchange="e => Rename(t, e.Value?.ToString())" />
+                        <input type="number" min="1" max="99" value="@t.Max" @onchange="e => SetMax(t, e.Value?.ToString())" />
+                        <span class="muted">@(t.Server ? "server" : "per character") · @(t.Weekly ? "weekly" : "daily")</span>
+                        <label><input type="checkbox" checked="@t.Hidden" @onchange="e => SetHidden(t, (bool)e.Value!)" /> hide</label>
+                    </div>
+                }
+                <div class="edit-row add">
+                    <input placeholder="New task name" @bind="NewName" />
+                    <input type="number" min="1" max="99" @bind="NewMax" />
+                    <label><input type="checkbox" @bind="NewServer" /> server</label>
+                    <label><input type="checkbox" @bind="NewDaily" /> daily</label>
+                    <button @onclick="AddTask">Add</button>
+                </div>
+            </details>
+        </section>
+    }
+    else if (Tab == "events")
+    {
+        <section class="cp-body events">
+            <div class="card">
+                <div class="card-h"><b>Live now</b></div>
+                @if (!Live().Any())
+                {
+                    <p class="muted">Nothing running right now.</p>
+                }
+                @foreach (var e in Live())
+                {
+                    <div class="live"><span class="dot k-@e.Kind"></span><b>@e.Name</b><span class="muted">@LiveText(e)</span></div>
+                }
+            </div>
+            <div class="card">
+                <div class="card-h"><b>Next 3 hours</b></div>
+                <div class="timeline">
+                    @for (int h = 0; h <= 3; h++)
+                    {
+                        <span class="tick" style="left:@(h * 100 / 3.0)%">@DateTime.Now.AddHours(h).ToString("HH:mm")</span>
+                    }
+                    @foreach (var e in Upcoming(TimeSpan.FromHours(3)))
+                    {
+                        <span class="mark k-@e.Kind" style="left:@Pos(e)%" title="@e.Name · @Local(e.Next)">@e.Icon</span>
+                    }
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h"><b>Up next</b></div>
+                @foreach (var e in Upcoming(TimeSpan.FromDays(8)).Where(e => e.Kind != "reset").Take(6))
+                {
+                    <div class="next"><span class="dot k-@e.Kind"></span><b>@e.Name</b><span class="muted">@Local(e.Next) · in @Until(e.Next)</span></div>
+                }
+                <div class="resets">
+                    @foreach (var e in Upcoming(TimeSpan.FromDays(8)).Where(e => e.Kind == "reset").Take(2))
+                    {
+                        <span>@e.Name in @Until(e.Next)</span>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="cp-body pets">
+            <div class="card">
+                <div class="card-h">
+                    <b>Pets</b>
+                    <span class="muted">@(PetsShowAll ? "all" : "not maxed") · shared by all your characters</span>
+                    <span class="spacer"></span>
+                    <button class="pet-btn" @onclick="() => PetsShowAll = !PetsShowAll">@(PetsShowAll ? "Not maxed only" : "Show all")</button>
+                    @if (UnsetPets() > 0)
+                    {
+                        <button class="pet-btn" title="Sets every pet you haven't set yet to level 3. Set the unfinished ones after." @onclick="Pets.MarkAllMaxed">Mark all maxed</button>
+                    }
+                </div>
+                @if (Pets.Catalog.Pets.Count == 0)
+                {
+                    <p class="muted">The pet list hasn't downloaded yet@(Pets.Downloads.LastError is { } err ? $" ({err})" : "").</p>
+                }
+                else
+                {
+                    @if (UnsetPets() > 0)
+                    {
+                        <p class="muted">@UnsetPets() pets not set yet: click <b>Mark all maxed</b>, then set the ones you're still raising (level + souls, as the game's pet window shows).</p>
+                    }
+                    @foreach (var r in PetRows())
+                    {
+                        <div class="pet @(r.Prog.Set ? "" : "unset")" @key="r.Pet.Name">
+                            <div class="pet-top">
+                                <a class="pet-name" href="@r.Pet.Url" target="_blank" title="Open on aion2data.com (map of soul spots)">@r.Pet.Name</a>
+                                <span class="pet-fam">@r.Pet.Family</span>
+                                <select value="@r.Prog.Level" @onchange="e => SetPetLevel(r, e)">
+                                    <option value="0">Not summoned</option><option value="1">Lv 1</option><option value="2">Lv 2</option><option value="3">Lv 3 (max)</option>
+                                </select>
+                                @if (r.Prog.Level < PetLevels.Max)
+                                {
+                                    <input class="pet-souls" type="number" min="0" max="@(PetLevels.NeedFor(r.Prog.Level) - 1)" value="@r.Prog.Souls" @onchange="e => SetPetSouls(r, e)" />
+                                    <span class="muted">/ @PetLevels.NeedFor(r.Prog.Level) · @r.Left left@(r.KillsLeft > 0 ? $" · ~{r.KillsLeft} kills" : "")</span>
+                                }
+                            </div>
+                            @if (r.Prog.Level < PetLevels.Max)
+                            {
+                                <div class="pet-bar"><i style="width:@((100 - r.Left * 100 / PetLevels.TotalToMax))%"></i></div>
+                                <div class="pet-src">
+                                    @foreach (var s in SourcesFor(r.Pet).Take(4))
+                                    {
+                                        <span>@s.Monster <em>Lv @s.Level · @(s.Chance.ToString("0.#"))%</em>@(s.Places.Length > 0 ? $" — {string.Join(", ", s.Places.Take(2))}" : "")</span>
+                                    }
+                                    @if (r.Pet.Sources.Length == 0) { <span class="muted">Not from monsters (shop, chest or pass)</span> }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                <p class="muted foot">Pet data from <a href="https://aion2data.com/pets" target="_blank">aion2data.com</a>@(Pets.Downloads.LoadedAt is { } at ? $" · {at.ToLocalTime():d MMM}" : "")</p>
+            </div>
+        </section>
+    }
+</div>

@@ -1,0 +1,31 @@
+﻿<Window x:Class="AionDpsMeter.UI.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:AionDpsMeter.UI.Views.Controls"
+        mc:Ignorable="d"
+        Title="AION2 DPS Meter"
+        Height="170"
+        Width="360"
+        MinHeight="50"
+        MinWidth="370"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ResizeMode="CanResizeWithGrip">
+
+    <Border x:Name="MainBorder"
+            Background="Transparent"
+            BorderThickness="0">
+
+        <Grid>
+
+                <!-- Native overlay: no embedded browser, so far less memory -->
+                <controls:NativeDpsOverlay x:Name="DpsOverlay"/>
+
+
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,84 @@
+using AionDpsMeter.Core.Models;
+using AionDpsMeter.Services.Models;
+
+namespace AionDpsMeter.Services.Services.Session
+{
+ 
+    public sealed class HistorySessionSnapshot
+    {
+        public Guid SessionId { get; init; }
+        public int TargetId { get; init; }
+        public string TargetName { get; init; } = string.Empty;
+        public long TargetHpTotal { get; init; }
+        public DateTime SessionStart { get; init; }
+        public DateTime SessionEnd { get; init; }
+        public SessionState State { get; init; }
+
+        public TimeSpan Duration => SessionEnd > SessionStart ? SessionEnd - SessionStart : TimeSpan.Zero;
+
+        public IReadOnlyList<PlayerStats> PlayerStats { get; init; } = [];
+
+        public IReadOnlyDictionary<long, IReadOnlyCollection<SkillStats>> SkillStatsByPlayer { get; init; }
+            = new Dictionary<long, IReadOnlyCollection<SkillStats>>();
+
+        public IReadOnlyDictionary<long, IReadOnlyCollection<BuffStats>> BuffStatsByPlayer { get; init; }
+            = new Dictionary<long, IReadOnlyCollection<BuffStats>>();
+
+        /// <summary>Raw damage events per player � newest first, matching the live CombatLog order.</summary>
+        public IReadOnlyDictionary<long, IReadOnlyList<PlayerDamage>> HitsByPlayer { get; init; }
+            = new Dictionary<long, IReadOnlyList<PlayerDamage>>();
+
+        /// <summary>Raw buff events per player for graph timeline.</summary>
+        public IReadOnlyDictionary<long, IReadOnlyList<BuffEvent>> BuffEventsByPlayer { get; init; }
+            = new Dictionary<long, IReadOnlyList<BuffEvent>>();
+
+        /// <summary>Your cooldown use in this fight (empty for fights saved before this existed).</summary>
+        public IReadOnlyList<CooldownUsage> Cooldowns { get; init; } = [];
+
+        public static HistorySessionSnapshot From(TargetCombatSession session, IReadOnlyList<CooldownUsage>? cooldowns = null)
+        {
+            var playerStats = session.GetPlayerStats().ToList();
+            var sessionStart = session.SessionStart;
+            var sessionEnd = session.LastHitTime;
+
+            var skillStats = playerStats.ToDictionary(
+                p => p.PlayerId,
+                p => (IReadOnlyCollection<SkillStats>)session.GetSkillStats(p.PlayerId).ToList());
+
+            var buffStats = playerStats.ToDictionary(
+                p => p.PlayerId,
+                p =>
+                {
+                    var buffs = session.GetBuffEvents(p.PlayerId, sessionStart, sessionEnd);
+                    return (IReadOnlyCollection<BuffStats>)BuffStatisticsCalculator
+                        .ComputeBuffStats(buffs, sessionStart, sessionEnd)
+                        .ToList();
+                });
+
+            var hitsByPlayer = playerStats.ToDictionary(
+                p => p.PlayerId,
+                p => session.GetCombatLog(p.PlayerId));
+
+            var buffEventsByPlayer = playerStats.ToDictionary(
+                p => p.PlayerId,
+                p => session.GetBuffEvents(p.PlayerId, sessionStart, sessionEnd));
+
+            return new HistorySessionSnapshot
+            {
+                SessionId         = session.SessionId,
+                TargetId           = session.TargetId,
+                TargetName         = session.TargetInfo.Name,
+                TargetHpTotal      = session.TargetInfo.HpTotal,
+                SessionStart       = session.SessionStart,
+                SessionEnd         = session.LastHitTime,
+                State              = session.State,
+                PlayerStats        = playerStats,
+                SkillStatsByPlayer = skillStats,
+                BuffStatsByPlayer  = buffStats,
+                HitsByPlayer       = hitsByPlayer,
+                BuffEventsByPlayer = buffEventsByPlayer,
+                Cooldowns          = cooldowns ?? [],
+            };
+        }
+    }
+}

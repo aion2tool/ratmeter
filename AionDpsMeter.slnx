@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="AionDpsMeter.Core/AionDpsMeter.Core.csproj" />
+  <Project Path="AionDpsMeter.Services/AionDpsMeter.Services.csproj" />
+  <Project Path="AionDpsMeter.UI/AionDpsMeter.UI.csproj" />
+  <Project Path="AionDpsMeter.Updater/AionDpsMeter.Updater.csproj" />
+  <Project Path="AionDpsMeter.Tests/AionDpsMeter.Tests.csproj" />
+</Solution>

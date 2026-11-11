@@ -1,0 +1,24 @@
+<button class="pill @(Value >= Def.Max ? "full" : "")" title="Click +1 · right-click −1"
+        @onclick="() => OnStep.InvokeAsync(1)" @oncontextmenu="() => OnStep.InvokeAsync(-1)" @oncontextmenu:preventDefault="true">
+    <span class="name">@Def.Name</span>
+    @if (Compact)
+    {
+        <span class="count">@Value/@Def.Max</span>
+    }
+    else if (Def.Max <= 7)
+    {
+        <span class="dots">@for (int i = 0; i < Def.Max; i++) { <i class="@(i < Value ? "on" : "")"></i> }</span>
+    }
+    else
+    {
+        <span class="count">@Value/@Def.Max</span>
+    }
+</button>
+
+@code {
+    [Parameter, EditorRequired] public AionDpsMeter.Services.Services.Roster.TaskDef Def { get; set; } = default!;
+    [Parameter] public int Value { get; set; }
+    /// <summary>Compact cards: just "n/max" (only unfinished tasks are shown there).</summary>
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public EventCallback<int> OnStep { get; set; }
+}
