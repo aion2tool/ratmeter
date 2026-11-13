@@ -106,42 +106,101 @@
     else if (Tab == "events")
     {
         <section class="cp-body events">
+            @* ---- Live now *@
             <div class="card">
-                <div class="card-h"><b>Live now</b></div>
+                <div class="card-h"><b>Live now</b>
+                    <span class="ev-resets">
+                        @foreach (var r in Upcoming(TimeSpan.FromDays(8)).Where(e => e.Kind == "reset").Take(2))
+                        {
+                            <span class="chip" title="@Local(r.Next)">↻ @r.Name <b>@Until(r.Next)</b></span>
+                        }
+                    </span>
+                </div>
                 @if (!Live().Any())
                 {
-                    <p class="muted">Nothing running right now.</p>
+                    <p class="muted">Nothing running right now. @(NextOf() is { } n ? $"Next: {n.Name} in {Until(n.Next)}." : "")</p>
                 }
-                @foreach (var e in Live())
-                {
-                    <div class="live"><span class="dot k-@e.Kind"></span><b>@e.Name</b><span class="muted">@LiveText(e)</span></div>
-                }
-            </div>
-            <div class="card">
-                <div class="card-h"><b>Next 3 hours</b></div>
-                <div class="timeline">
-                    @for (int h = 0; h <= 3; h++)
+                <div class="ev-live">
+                    @foreach (var e in Live())
                     {
-                        <span class="tick" style="left:@(h * 100 / 3.0)%">@DateTime.Now.AddHours(h).ToString("HH:mm")</span>
-                    }
-                    @foreach (var e in Upcoming(TimeSpan.FromHours(3)))
-                    {
-                        <span class="mark k-@e.Kind" style="left:@Pos(e)%" title="@e.Name · @Local(e.Next)">@e.Icon</span>
+                        <div class="ev-livecard k-@e.Kind" title="@e.Description">
+                            <span class="ev-ico">@e.Icon</span>
+                            <div class="ev-lc-body">
+                                <div class="ev-lc-top"><b>@e.Name</b><span class="ev-kind k-@e.Kind">@KindBadge(e.Kind)</span></div>
+                                <div class="ev-desc">@e.Description</div>
+                                @if (e.Duration > TimeSpan.Zero)
+                                {
+                                    <div class="ev-prog"><i style="width:@Pct(LiveDone(e))%"></i></div>
+                                }
+                                <div class="ev-lc-foot"><span class="ev-on">● LIVE</span><span>@LiveText(e)</span></div>
+                            </div>
+                        </div>
                     }
                 </div>
             </div>
+
+            @* ---- Next 3 hours: one row per kind, blocks sized by duration *@
+            <div class="card">
+                <div class="card-h"><b>Next 3 hours</b><span class="muted">hover a block for details</span></div>
+                <div class="gantt">
+                    <div class="g-axis">
+                        <span class="g-label"></span>
+                        <div class="g-track">
+                            @foreach (var t in Ticks())
+                            {
+                                <span class="g-tick @(t.Major ? "major" : "")" style="left:@Pct(t.Pos)%">@t.Label</span>
+                            }
+                            <span class="g-now-l">now @DateTime.Now.ToString("HH:mm")</span>
+                        </div>
+                    </div>
+                    @foreach (var row in Rows())
+                    {
+                        <div class="g-row">
+                            <span class="g-label"><i class="dot k-@row.Kind"></i>@KindLabel(row.Kind)<small>@row.Bars.Count</small></span>
+                            <div class="g-track" style="height:@(row.Lanes * 34 + 6)px">
+                                @foreach (var t in Ticks())
+                                {
+                                    <span class="g-grid @(t.Major ? "major" : "")" style="left:@Pct(t.Pos)%"></span>
+                                }
+                                @foreach (var bar in row.Bars)
+                                {
+                                    <div class="g-bar k-@row.Kind @(bar.Point ? "point" : "") @(bar.E.IsLive ? "live" : "")"
+                                         style="@BarStyle(bar)" title="@BarTip(bar)">
+                                        <span class="g-ico">@bar.E.Icon</span><span class="g-name">@bar.E.Name</span><span class="g-time">@bar.Start.ToLocalTime().ToString("HH:mm")</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (!Rows().Any())
+                    {
+                        <p class="muted">Nothing scheduled in the next 3 hours.</p>
+                    }
+                    <span class="g-nowline"></span>
+                </div>
+            </div>
+
+            @* ---- Up next, by day *@
             <div class="card">
                 <div class="card-h"><b>Up next</b></div>
-                @foreach (var e in Upcoming(TimeSpan.FromDays(8)).Where(e => e.Kind != "reset").Take(6))
+                @foreach (var day in Upcoming(TimeSpan.FromDays(8)).Where(e => e.Kind != "reset").Take(10).GroupBy(e => DayName(e.Next)))
                 {
-                    <div class="next"><span class="dot k-@e.Kind"></span><b>@e.Name</b><span class="muted">@Local(e.Next) · in @Until(e.Next)</span></div>
-                }
-                <div class="resets">
-                    @foreach (var e in Upcoming(TimeSpan.FromDays(8)).Where(e => e.Kind == "reset").Take(2))
+                    <div class="ev-day">@day.Key</div>
+                    @foreach (var e in day)
                     {
-                        <span>@e.Name in @Until(e.Next)</span>
+                        <div class="ev-row" title="@e.Description">
+                            <span class="ev-ico k-@e.Kind">@e.Icon</span>
+                            <div class="ev-main">
+                                <div><b>@e.Name</b><span class="ev-kind k-@e.Kind">@KindBadge(e.Kind)</span></div>
+                                <div class="ev-desc">@e.Description</div>
+                            </div>
+                            <div class="ev-when">
+                                <b>@e.Next!.Value.ToLocalTime().ToString("HH:mm")</b>
+                                <span>in @Until(e.Next)@(e.Duration > TimeSpan.Zero ? " · " + Dur(e.Duration) : "")</span>
+                            </div>
+                        </div>
                     }
-                </div>
+                }
             </div>
         </section>
     }

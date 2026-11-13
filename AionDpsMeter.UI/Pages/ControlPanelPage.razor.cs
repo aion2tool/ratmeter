@@ -173,6 +173,88 @@ namespace AionDpsMeter.UI.Pages
             e.PortalOpen(Now) ? $"portal closes in {Until(e.LiveStart!.Value + e.Portal!.Value)}" : $"ends in {Until(e.LiveStart!.Value + e.Duration)}";
 
         private static double Pos(EventStatus e) => Math.Clamp((e.Next!.Value - Now).TotalHours / 3 * 100, 0, 100);
+
+        // ---- events: timeline rows (one per kind, overlapping blocks stacked into lanes)
+        private const double WindowHours = 3;
+        private sealed record GBar(EventStatus E, DateTime Start, DateTime End, double Left, double Width, int Lane, bool Point);
+        private sealed record GRow(string Kind, List<GBar> Bars, int Lanes);
+        private sealed record GTick(double Pos, string Label, bool Major);
+        private static readonly string[] KindOrder = ["boss", "pvp", "abyss", "event", "reset"];
+
+        private List<GRow> Rows()
+        {
+            var now = Now; var end = now.AddHours(WindowHours);
+            var rows = new List<GRow>();
+            var items = All().Select(e =>
+            {
+                var start = e.IsLive ? e.LiveStart!.Value : e.Next ?? DateTime.MaxValue;
+                return (e, start, stop: start == DateTime.MaxValue ? start : start + e.Duration);
+            }).Where(x => x.start < end && (x.start >= now || x.stop > now));
+            foreach (var g in items.GroupBy(x => x.e.Kind).OrderBy(g => KindRank(g.Key)))
+            {
+                var lanesRight = new List<double>();   // right edge (in %) of the last block in each lane
+                var bars = new List<GBar>();
+                foreach (var x in g.OrderBy(x => x.start))
+                {
+                    double left = Math.Max(0, (x.start - now).TotalHours / WindowHours * 100);
+                    bool point = x.e.Duration <= TimeSpan.Zero;
+                    double width = point ? 0 : Math.Max(1.5, (Min(x.stop, end) - Max(x.start, now)).TotalHours / WindowHours * 100);
+                    double room = Math.Max(width, 17);   // a block needs room for its label
+                    bool flip = left + Math.Max(width, 15) > 100;   // near the end: drawn ending at its time (see Flip)
+                    double from = flip ? Math.Max(0, (point ? left : left + width) - room) : left;
+                    int lane = lanesRight.FindIndex(r => r <= from);
+                    if (lane < 0) { lane = lanesRight.Count; lanesRight.Add(0); }
+                    lanesRight[lane] = from + room + 0.5;
+                    bars.Add(new GBar(x.e, x.start, x.stop, left, width, lane, point));
+                }
+                rows.Add(new GRow(g.Key, bars, Math.Max(1, lanesRight.Count)));
+            }
+            return rows;
+        }
+
+        private static int KindRank(string kind) { int i = Array.IndexOf(KindOrder, kind); return i < 0 ? 99 : i; }
+
+        /// <summary>Gridlines every 30 minutes on the clock (labels on the hour).</summary>
+        private static IEnumerable<GTick> Ticks()
+        {
+            var now = DateTime.Now;
+            var t = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute >= 30 ? 30 : 0, 0).AddMinutes(30);
+            for (; t <= now.AddHours(WindowHours); t = t.AddMinutes(30))
+            {
+                double pos = (t - now).TotalHours / WindowHours * 100;
+                yield return new GTick(pos, t.Minute == 0 && pos > 7 && pos < 97 ? t.ToString("HH:mm") : "", t.Minute == 0);   // no label under "now" or off the edge
+            }
+        }
+
+        /// <summary>Blocks near the right edge end at their time instead of running off the timeline.</summary>
+        private static bool Flip(GBar b) => b.Left + Math.Max(b.Width, 15) > 100;
+        private static string BarStyle(GBar b) =>
+            $"left:{Pct(b.Left + (Flip(b) && !b.Point ? b.Width : 0))}%;{(b.Point ? "" : $"width:{Pct(b.Width)}%;")}top:{b.Lane * 34 + 4}px"
+            + (Flip(b) ? ";transform:translateX(-100%)" : "");
+        private static string BarTip(GBar b) =>
+            $"{b.E.Name} · {b.Start.ToLocalTime():ddd HH:mm}{(b.E.Duration > TimeSpan.Zero ? $"–{b.End.ToLocalTime():HH:mm}" : "")} · "
+            + (b.E.IsLive ? "live now" : "in " + Until(b.Start)) + (string.IsNullOrWhiteSpace(b.E.Description) ? "" : "\n" + b.E.Description);
+
+        private static string Pct(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
+        private static DateTime Max(DateTime a, DateTime b) => a > b ? a : b;
+        private static string KindLabel(string kind) => kind switch
+        {
+            "boss" => "Bosses", "pvp" => "PvP", "abyss" => "Abyss", "event" => "Events", "reset" => "Resets", _ => kind,
+        };
+        private static string KindBadge(string kind) => kind switch
+        {
+            "boss" => "Boss", "pvp" => "PvP", "abyss" => "Abyss", "event" => "Event", "reset" => "Reset", _ => kind,
+        };
+        private static string Dur(TimeSpan d) => d.TotalHours >= 1 ? $"{d.TotalHours:0.#} h" : $"{d.TotalMinutes:0} min";
+        private static double LiveDone(EventStatus e) =>
+            e.Duration <= TimeSpan.Zero ? 100 : Math.Clamp((Now - e.LiveStart!.Value).TotalMinutes / e.Duration.TotalMinutes * 100, 0, 100);
+        private EventStatus? NextOf() => Upcoming(TimeSpan.FromDays(8)).FirstOrDefault(e => e.Kind != "reset");
+        private static string DayName(DateTime? utc)
+        {
+            var d = (utc ?? Now).ToLocalTime().Date;
+            return d == DateTime.Today ? "Today" : d == DateTime.Today.AddDays(1) ? "Tomorrow" : d.ToString("dddd");
+        }
         private static string Local(DateTime? utc) => utc?.ToLocalTime().ToString("ddd HH:mm") ?? "";
 
         private static string Until(DateTime? utc)
